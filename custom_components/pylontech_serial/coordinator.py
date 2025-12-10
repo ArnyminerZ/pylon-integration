@@ -4,6 +4,7 @@ import logging
 import serial
 import time
 from datetime import datetime, timedelta
+import re
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
@@ -51,7 +52,7 @@ class PylontechCoordinator(DataUpdateCoordinator):
         """Fetch data from the device."""
         if not self.device_info:
              await self.hass.async_add_executor_job(self._read_info_data)
-        return await self.hass.async_add_executor_job(self._read_pwr_data)
+        return await self.hass.async_add_executor_job(self._read_full_data)
 
     def _read_info_data(self):
         """Read device info (firmware, serial) once."""
@@ -67,7 +68,7 @@ class PylontechCoordinator(DataUpdateCoordinator):
             time.sleep(1.0)
             
             raw_data = self.serial.read_all().decode('ascii', errors='ignore')
-            _LOGGER.debug(f"Received info data: {raw_data}")
+            raw_data = self.serial.read_all().decode('ascii', errors='ignore')
 
             # Parse info
             # Output format varies, but usually contains:
@@ -94,7 +95,7 @@ class PylontechCoordinator(DataUpdateCoordinator):
             _LOGGER.warning(f"Failed to fetch device info: {e}")
             # Don't fail the main update, just log
 
-    def _read_pwr_data(self):
+    def _read_full_data(self):
         """Read data from serial synchronously."""
         try:
             self._open_serial()
@@ -110,19 +111,50 @@ class PylontechCoordinator(DataUpdateCoordinator):
             self.serial.write(b"pwr\n")
             time.sleep(1.0) # Wait for response
             
-            raw_data = self.serial.read_all().decode('ascii', errors='ignore')
-            _LOGGER.debug(f"Received data: {raw_data[:100]}...") # Log first 100 chars
+            raw_data_pwr = self.serial.read_all().decode('ascii', errors='ignore')
+            _LOGGER.debug(f"Received pwr data: {raw_data_pwr[:100]}...") # Log first 100 chars
             
-            if "Power Volt" not in raw_data:
+            if "Power Volt" not in raw_data_pwr:
                 # Try once more?
-                _LOGGER.warning("Invalid response, retrying...")
+                _LOGGER.warning("Invalid response for 'pwr', retrying...")
                 time.sleep(1.0)
-                raw_data = self.serial.read_all().decode('ascii', errors='ignore')
+                raw_data_pwr = self.serial.read_all().decode('ascii', errors='ignore')
             
-            if "Power Volt" not in raw_data:
+            if "Power Volt" not in raw_data_pwr:
                  raise UpdateFailed("Did not receive valid 'pwr' response header.")
 
-            return self._parse_pwr_response(raw_data)
+            # Send STAT command (since soh command was returning cell voltages and help confirmed stat exists)
+            _LOGGER.debug("Sending 'stat' command for SOH/Cycles")
+            self.serial.write(b"stat\n")
+            time.sleep(1.0) # Wait for response
+            
+            raw_data_stat = self.serial.read_all().decode('ascii', errors='ignore')
+            # _LOGGER.warning(f"DEBUG: Received stat raw data:\n{raw_data_stat}") # Keep warning for verification if needed, or downgrade to debug
+
+            data = self._parse_pwr_response(raw_data_pwr)
+            stat_map = self._parse_stat_response(raw_data_stat)
+            
+            # Merge STAT data (SOH, Cycles)
+            if stat_map:
+                for bat in data["batteries"]:
+                    bat_id = bat["id"]
+                    if bat_id in stat_map:
+                        bat_data = stat_map[bat_id]
+                        if "soh" in bat_data: bat["soh"] = bat_data["soh"]
+                        if "cycles" in bat_data: bat["cycles"] = bat_data["cycles"]
+                
+                # Recalculate System SOH
+                soh_values = [b.get("soh") for b in data["batteries"] if b.get("soh") is not None]
+                if soh_values:
+                    data["system"]["soh"] = round(sum(soh_values) / len(soh_values), 1)
+                    
+                # Calculate System Cycles (Average? Or Max?)
+                # Usually max or average. Let's do average.
+                cycle_values = [b.get("cycles") for b in data["batteries"] if b.get("cycles") is not None]
+                if cycle_values:
+                    data["system"]["cycles"] = int(sum(cycle_values) / len(cycle_values))
+
+            return data
 
         except Exception as e:
             self._close_serial()
@@ -158,7 +190,7 @@ class PylontechCoordinator(DataUpdateCoordinator):
                         "power": power
                     })
                 except (ValueError, IndexError) as error:
-                   _LOGGER.error(f"Error parsing line '{line}': {error}")
+                   _LOGGER.error(f"Error parsing pwr line '{line}': {error}")
                    continue
 
         if not batteries:
@@ -206,3 +238,51 @@ class PylontechCoordinator(DataUpdateCoordinator):
             },
             "batteries": batteries
         }
+
+    def _parse_stat_response(self, raw_text):
+        """Parses the 'stat' command output for SOH and Cycles."""
+        stat_map = {}
+        
+        try:
+             # Basic regex for "Bat <id> ... SOH <val>" or "CYCLE Times : <val>"
+             # The user log shows: "stat @ Device address 1 ... CYCLE Times : 427 ..."
+             # This implies "Device address 1" is the battery ID.
+             
+             # Regex to find blocks per battery or lines
+             # Log: "stat @ Device address 1 Data Items ..."
+             
+             # Let's find all occurences of "Device address (\d+)" and then look for "CYCLE Times : (\d+)" in the same block?
+             # Or just split by "stat @" if multiple are present?
+             # User log showed repeated "DEBUG: Received stat raw data: ... address 1 ..."
+             
+             # A simple robust way: 
+             # Find all matches of: "Device address\s*(\d+).*?CYCLE Times\s*[:]\s*(\d+)"
+             # And also look for "SOH : (\d+)" if it exists (it didn't in user log, but might in others)
+             
+             # Combined regex might be tricky if SOH is missing.
+             # Let's try to match ID and text chunk, then parse chunk.
+             
+             # Match lines starting with "stat @" or containing "Device address"
+             # Actually, split text by "$$" or newlines?
+             # The log was one long line? "stat @ Device address 1 ... $$ pylon>"
+             
+             # Regex for ID and Cycles
+             cycle_matches = re.findall(r"Device address\s*(\d+).*?CYCLE Times\s*[:]\s*(\d+)", raw_text, re.IGNORECASE | re.DOTALL)
+             for m in cycle_matches:
+                 bat_id = int(m[0])
+                 cycles = int(m[1])
+                 if bat_id not in stat_map: stat_map[bat_id] = {}
+                 stat_map[bat_id]["cycles"] = cycles
+                 
+             # Regex for ID and SOH (if it exists)
+             soh_matches = re.findall(r"Device address\s*(\d+).*?SOH\s*[:]\s*(\d+)", raw_text, re.IGNORECASE | re.DOTALL)
+             for m in soh_matches:
+                 bat_id = int(m[0])
+                 soh = int(m[1])
+                 if bat_id not in stat_map: stat_map[bat_id] = {}
+                 stat_map[bat_id]["soh"] = soh
+                 
+        except Exception as e:
+            _LOGGER.error(f"Error parsing STAT: {e}")
+            
+        return stat_map

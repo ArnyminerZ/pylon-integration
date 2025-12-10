@@ -67,8 +67,23 @@ async def async_setup_entry(
     entities.append(PylontechSystemSensor(
         coordinator, unique_id_prefix, "sys_energy_stored", "System Stored Energy", 
         UnitOfEnergy.KILO_WATT_HOUR, SensorDeviceClass.ENERGY_STORAGE, "energy_stored",
-        state_class=SensorStateClass.TOTAL
+        state_class=SensorStateClass.MEASUREMENT
     ))
+
+    # SOH (System Average)
+    entities.append(PylontechSystemSensor(
+        coordinator, unique_id_prefix, "sys_soh", "System SOH", 
+        PERCENTAGE, SensorDeviceClass.BATTERY, "soh",
+        state_class=SensorStateClass.MEASUREMENT
+    ))
+
+    # Cycle Count (System Average)
+    entities.append(PylontechSystemSensor(
+        coordinator, unique_id_prefix, "sys_cycles", "System Cycles", 
+        None, None, "cycles",
+        state_class=SensorStateClass.MEASUREMENT
+    ))
+
 
 
     # --- Per Battery Sensors ---
@@ -94,6 +109,16 @@ async def async_setup_entry(
             entities.append(PylontechBatterySensor(
                  coordinator, unique_id_prefix, bat_id, "soc", "SOC", 
                  PERCENTAGE, SensorDeviceClass.BATTERY, "soc"
+            ))
+            # SOH
+            entities.append(PylontechBatterySensor(
+                 coordinator, unique_id_prefix, bat_id, "soh", "SOH", 
+                 PERCENTAGE, SensorDeviceClass.BATTERY, "soh"
+            ))
+            # Cycles
+            entities.append(PylontechBatterySensor(
+                 coordinator, unique_id_prefix, bat_id, "cycles", "Cycles", 
+                 None, None, "cycles"
             ))
             # Power
             entities.append(PylontechBatterySensor(
