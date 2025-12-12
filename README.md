@@ -1,5 +1,7 @@
 # Pylontech Serial Integration for Home Assistant
 
+[![HACS Custom](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/hacs/integration)
+
 Connect your Pylontech US2000/US3000 battery stack directly to Home Assistant using a USB-to-RS232/RS485 cable.
 
 ## Features
@@ -14,6 +16,18 @@ Connect your Pylontech US2000/US3000 battery stack directly to Home Assistant us
 > To add auto-discovery support for your device, please see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Installation
+
+### Via HACS (Recommended)
+
+1.  Ensure you have [HACS](https://hacs.xyz/) installed.
+2.  Go to **HACS > Integrations**.
+3.  Click the **3 dots** (top right) > **Custom repositories**.
+4.  Add the URL of this repository.
+5.  Category: **Integration**.
+6.  Click **Add**, then find and install **Pylontech Serial**.
+7.  Restart Home Assistant.
+
+### Manual Installation
 
 1. **Locate your configuration directory**: Find your Home Assistant `config` folder (where `configuration.yaml` lives).
 2. **Create custom_components**: If it doesn't exist, create a folder named `custom_components` inside your `config` folder.
