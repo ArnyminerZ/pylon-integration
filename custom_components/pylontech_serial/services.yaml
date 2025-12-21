@@ -8,6 +8,4 @@ send_command:
       required: true
       selector:
         text:
-  target:
-    device:
-      integration: pylontech_serial
+  target: {}
