@@ -6,9 +6,9 @@
   "dependencies": [
     "usb"
   ],
-  "documentation": "https://github.com/arnyminerz/pylon-integration",
+  "documentation": "https://github.com/arnyminerz/ha-pylon-integration",
   "iot_class": "local_polling",
-  "issue_tracker": "https://github.com/arnyminerz/pylon-integration/issues",
+  "issue_tracker": "https://github.com/arnyminerz/ha-pylon-integration/issues",
   "requirements": [
     "pyserial==3.5"
   ],
