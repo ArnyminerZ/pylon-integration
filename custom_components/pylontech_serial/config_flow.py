@@ -3,7 +3,7 @@ import serial.tools.list_ports
 import voluptuous as vol
 
 from homeassistant import config_entries
-from homeassistant.components.usb import UsbServiceInfo
+from homeassistant.helpers.service_info.usb import UsbServiceInfo
 from homeassistant.const import CONF_NAME
 from homeassistant.core import callback
 
