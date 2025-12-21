@@ -124,7 +124,7 @@ class PylontechSystemSensor(CoordinatorEntity, SensorEntity):
 
     def __init__(self, coordinator, unique_id_prefix, key, unit, device_class, attr_name, state_class=None, entity_category=None):
         super().__init__(coordinator)
-        self._attr_name = attr_name # field name in struct
+        self._attribute_key = attr_name # field name in struct
         self._unit = unit
         self._device_class = device_class
         self._attr_state_class = state_class
@@ -144,7 +144,7 @@ class PylontechSystemSensor(CoordinatorEntity, SensorEntity):
     @property
     def native_value(self):
         if not self.coordinator.data: return None
-        return getattr(self.coordinator.data, self._attr_name, None)
+        return getattr(self.coordinator.data, self._attribute_key, None)
 
     @property
     def native_unit_of_measurement(self):
@@ -171,7 +171,7 @@ class PylontechBatterySensor(CoordinatorEntity, SensorEntity):
     def __init__(self, coordinator, unique_id_prefix, bat_id, suffix, unit, device_class, attr_name, entity_category=None):
         super().__init__(coordinator)
         self._bat_id = bat_id
-        self._attr_name = attr_name
+        self._attribute_key = attr_name
         self._unit = unit
         self._device_class = device_class
         self._attr_entity_category = entity_category
@@ -192,7 +192,7 @@ class PylontechBatterySensor(CoordinatorEntity, SensorEntity):
         if not self.coordinator.data: return None
         for b in self.coordinator.data.batteries:
             if b.sys_id == self._bat_id:
-                return getattr(b, self._attr_name, None)
+                return getattr(b, self._attribute_key, None)
         return None
 
     @property
