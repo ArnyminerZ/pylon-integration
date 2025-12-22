@@ -152,5 +152,5 @@ class PylontechParser:
     def generate_time_command(timestamp: datetime) -> str:
         """Generates the 'time' command for specific datetime."""
         # time [year] [month] [day] [hour] [minute] [second]
-        # Example: time 2025 12 21 13 00 00
-        return timestamp.strftime("time %Y %m %d %H %M %S")
+        # Example: time 25 12 21 13 00 00
+        return timestamp.strftime("time %y %m %d %H %M %S")
